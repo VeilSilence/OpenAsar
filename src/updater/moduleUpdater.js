@@ -60,9 +60,17 @@ exports.init = (endpoint, { releaseChannel, version }) => {
 
   Module.globalPaths.push(basePath);
 
-  // Purge pending
-  fs.rmSync(downloadPath, { recursive: true, force: true });
-  mkdir(downloadPath);
+  // Purge pending, but only when the module updater will actually run.
+  // downloadPath lives under basePath, which on read-only installs (nix,
+  // flatpak, anything inside bwrap) is a symlink into a store directory:
+  // rmSync/mkdir there throw EROFS, init() never returns, and the app dies
+  // before splash.initSplash() -- a live process tree with no window.
+  // Fixes installation on read-only filesystems.
+  // Based on https://github.com/GooseMod/OpenAsar/pull/262
+  if (!skipModule) {
+    fs.rmSync(downloadPath, { recursive: true, force: true });
+    mkdir(downloadPath);
+  }
 
   try {
     installed = JSON.parse(fs.readFileSync(manifestPath));
